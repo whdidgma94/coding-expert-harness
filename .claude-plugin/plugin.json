@@ -1,0 +1,9 @@
+{
+  "name": "coding-expert",
+  "description": "자연어 요청으로 코드 리뷰·버그 수정·코드 생성·리팩토링을 자동 수행하는 범용 코딩 보조 하네스",
+  "version": "0.1.0",
+  "author": {
+    "name": ""
+  },
+  "license": "MIT"
+}
