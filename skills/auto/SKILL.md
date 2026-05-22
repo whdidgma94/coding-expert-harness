@@ -1,105 +1,95 @@
----
-name: auto
-description: 전체 파이프라인 오케스트레이터. 사용자가 /auto "요청" 커맨드를 실행할 때 호출되며, classify → explore → execute → verify → 사용자 확인 → apply 순으로 전체 파이프라인을 실행한다.
----
+# auto
 
-# auto skill
-
-사용자의 자연어 요청을 받아 코드 리뷰·버그 수정·코드 생성·리팩토링 전체 파이프라인을 순서대로 실행하는 오케스트레이터 skill이다.
+전체 파이프라인 오케스트레이터. 사용자의 자연어 요청을 받아 Step 1~10을 순서대로 실행하며 사용자 체크포인트 A·B를 관리하고, 분기·검증 루프·테스트 실패 처리를 제어한다.
 
 ## 입력
 
 - 사용자의 자연어 요청 문자열 (예: `"login 함수에서 NPE 발생하는 버그 수정해줘"`)
 
----
+## 실행 절차
 
-## Step 1 — 요청 접수 및 세션 초기화
+### Step 1 — 요청 접수 및 세션 초기화
 
-1. 사용자 요청 원문을 수신한다.
-2. 현재 시각과 요청 키워드를 기반으로 `{session-id}`를 결정한다.
+1. 현재 시각과 요청 키워드를 기반으로 `{session-id}`를 결정한다.
    - 형식: `YYYYMMDD-{작업키워드}` (소문자 + 하이픈 + 숫자만 사용)
    - 예: `20260521-fix-login-npe`, `20260521-review-auth-module`
-3. 산출물 디렉토리를 생성한다: `.coding-expert-artifacts/{session-id}/`
-4. 사용자 요청 원문을 `.coding-expert-artifacts/{session-id}/request.md`에 저장한다.
+2. `.coding-expert-artifacts/{session-id}/` 디렉토리를 생성한다.
+3. 사용자 요청 원문을 `.coding-expert-artifacts/{session-id}/request.md`에 저장한다.
 
-**출력**: `{session-id}`, `.coding-expert-artifacts/{session-id}/request.md`
+### Step 2 — 의도 분류
 
----
+`classify` skill을 호출한다.
+- 전달 인자: `session-id`
 
-## Step 2 — 의도 분류 (classify skill 호출)
+### Step 3 — 코드베이스 탐색
 
-**classify skill을 호출**하여 요청을 작업 유형으로 분류하고 `task-spec.md`를 생성한다.
+`explore` skill을 호출한다.
+- 전달 인자: `session-id`
 
-- 입력: `{session-id}`, 사용자 요청 원문
-- 출력: `.coding-expert-artifacts/{session-id}/task-spec.md`
+### Step 4 — 아키텍처 계획 (조건부)
 
----
+`task-spec.md`의 작업 유형을 확인한다.
+- `review` 유형이면 이 단계를 건너뛴다.
+- `generate` 유형이면 반드시 실행한다.
+- `refactor` / `bugfix` 유형이면 폴더 구조 변경(파일 이동·신규 디렉토리 생성)이 동반될 때만 실행한다.
 
-## Step 3 — 코드베이스 탐색 (explore skill 호출)
+실행하는 경우: `design` skill을 호출한다.
+- 전달 인자: `session-id`, `task-type`
 
-**explore skill을 호출**하여 대상 코드베이스를 탐색하고 `codebase-context.md`를 생성한다.
+사용자가 수정을 요청하면 `design` skill을 재호출한다.
 
-- 입력: `{session-id}`, `task-spec.md`
-- 출력: `.coding-expert-artifacts/{session-id}/codebase-context.md`
+### Step 5 — 작업 수행
 
----
+`execute` skill을 호출한다.
+- 전달 인자: `session-id`, `task-type`
 
-## Step 4 — 작업 수행 (execute skill 호출)
+### Step 6 — 자가 검증
 
-**execute skill을 호출**하여 `task-spec.md`의 작업 유형에 따라 작업을 수행한다.
+`verify` skill을 호출한다.
+- 전달 인자: `session-id`, `task-type`
 
-- 입력: `{session-id}`, `task-spec.md`, `codebase-context.md`
-- 출력: `.coding-expert-artifacts/{session-id}/work-result.md`, `.coding-expert-artifacts/{session-id}/changes/`
+verify skill 내부에서 REVISE 판정 시 `execute` skill이 1회 재호출된다. 재실행 후에도 REVISE이면 검증 결과를 그대로 유지하고 체크포인트 B에서 사용자에게 REVISE 상태임을 알리고 진행 여부를 확인한다.
 
----
+### Step 7 — 사용자 확인 체크포인트 B
 
-## Step 5 — 자가 검증 (verify skill 호출)
+사용자에게 다음 항목을 제시하고 승인/수정/거부를 수령한다:
 
-**verify skill을 호출**하여 작업 결과를 검증하고 PASS/REVISE를 판정한다.
+1. 작업 요약 (분류된 작업 유형, 대상 파일 목록, 작업 내용 한 줄 요약)
+2. 확정된 기능별 폴더 구조 (아키텍처 계획이 실행된 경우)
+3. 진단 결과 (`work-result.md` 핵심 내용)
+4. 검증 결과 (`verification.md`의 PASS/REVISE 판정 및 체크리스트)
+5. 적용될 변경 diff (`changes/` 디렉토리의 파일 내용 또는 unified diff)
+6. Git 업로드 범위 선택: `commit-only` / `commit-push` / `commit-push-pr` 중 하나
 
-- 입력: `{session-id}`, `task-spec.md`, `codebase-context.md`, `work-result.md`, `changes/`
-- 출력: `.coding-expert-artifacts/{session-id}/verification.md`
-
-verify skill 내부에서 REVISE 판정 시 execute skill이 1회 재호출되며, 재실행 후에도 REVISE면 검증 결과를 그대로 다음 단계로 넘긴다.
-
----
-
-## Step 6 — 사용자 확인 체크포인트
-
-**사용자 확인 체크포인트**
-
-다음 정보를 사용자에게 제시한다:
-
-1. **작업 요약**: 분류된 작업 유형, 대상 파일 목록, 작업 내용 한 줄 요약
-2. **진단 결과**: `work-result.md` 핵심 내용
-3. **검증 결과**: `verification.md`의 PASS/REVISE 판정 및 체크리스트
-4. **적용될 변경(diff)**: `changes/` 디렉토리의 각 변경 파일 내용 또는 unified diff
-5. **신규 파일 경로 확인** (generate 유형에 해당하는 경우): code-generator가 제안한 경로를 명시하고 사용자 확인을 받는다.
-
-사용자 응답에 따라 분기한다:
-- **승인**: Step 7로 진행한다.
-- **수정 요청**: 수정 내용을 반영하여 Step 4(execute skill)로 돌아가 재작업 후 Step 5~6을 다시 실행한다.
+사용자 응답에 따라 분기:
+- **승인**: Step 8로 진행한다.
+- **수정 요청**: 해당 부분만 Step 5(필요 시 Step 4)로 돌아가 재작업 후 Step 6~7을 다시 실행한다.
 - **거부**: 파이프라인을 종료하고 산출물 디렉토리 경로를 안내한다.
 
-> **review 유형 특이사항**: `changes/`가 비어 있으므로 "적용될 변경" 항목 없이 진단 리포트만 제시하고, Step 7을 건너뛰어 파이프라인을 종료한다.
+> **review 유형 특이사항**: `changes/`가 비어 있으므로 "적용될 변경" 항목 없이 진단 리포트만 제시하고, 이 시점에 파이프라인을 종료한다. Step 8~10을 건너뛴다.
 
----
-
-## Step 7 — 변경 적용 (apply skill 호출)
+### Step 8 — 변경 적용
 
 사용자 승인 후에만 실행한다.
 
-**apply skill을 호출**하여 `changes/`의 패치를 실제 소스 파일에 적용한다.
+`apply` skill을 호출한다.
+- 전달 인자: `session-id`
 
-- 입력: `{session-id}`, `changes/`, `codebase-context.md`
-- 출력: `.coding-expert-artifacts/{session-id}/apply-log.md`, 실제 소스 파일 변경
+### Step 9 — 자동 테스트
 
----
+`test` skill을 호출한다.
+- 전달 인자: `session-id`, `task-type`
 
-## 파이프라인 종료
+테스트 실패 시: 강력 경고를 표시하고, 사용자가 "테스트 실패를 인지하고 업로드"를 명시적으로 승인해야만 Step 10으로 진행한다.
 
-apply skill 실행이 완료되면 사용자에게 다음을 보고한다:
+### Step 10 — Git 업로드
 
-- 적용된 파일 목록 (`apply-log.md` 기반)
-- git 브랜치 정보 (git 레포인 경우)
-- 산출물 디렉토리 경로: `.coding-expert-artifacts/{session-id}/`
+`ship` skill을 호출한다.
+- 전달 인자: `session-id`, `git-scope` (Step 7에서 사용자가 선택한 값)
+
+테스트가 실패한 상태로 진행하는 경우 Step 9에서 받은 사용자 명시 승인을 ship skill에 함께 전달한다.
+
+## 출력
+
+- `.coding-expert-artifacts/{session-id}/` — 세션 전체 산출물 디렉토리
+- 최종 보고: 적용된 파일 목록, git 브랜치/커밋/PR URL (git 레포인 경우), 산출물 디렉토리 경로

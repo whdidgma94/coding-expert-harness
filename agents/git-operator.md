@@ -26,99 +26,33 @@ tools: Bash, Write
 
 ### Step 1: 사전 확인
 
-1. git 레포 여부를 확인한다:
-   ```bash
-   git rev-parse --is-inside-work-tree 2>/dev/null
-   ```
-   - git 레포가 아니면 apply-log.md에 "git 작업 불가: git 레포지토리가 아님"을 기록하고 종료한다.
-
-2. 미커밋 변경사항이 있는지 확인한다:
-   ```bash
-   git status --porcelain
-   ```
-   - 변경사항이 없으면 "스테이징할 변경사항이 없음"을 apply-log.md에 기록하고 종료한다.
+- `git rev-parse --is-inside-work-tree 2>/dev/null` — git 레포가 아니면 apply-log.md에 기록 후 종료.
+- `git status --porcelain` — 변경사항이 없으면 apply-log.md에 기록 후 종료.
 
 ### Step 2: 브랜치 생성 및 커밋
 
-1. 현재 브랜치를 저장한다:
-   ```bash
-   git branch --show-current
-   ```
+1. `git branch --show-current` 로 현재 브랜치 저장.
+2. `git checkout -b coding-expert/{session-id}` — 동일 브랜치 존재 시 `-b` 생략.
+3. `git add -A` 후 커밋: 첫 줄 `{task-type}: {task-summary}` (72자 이내), 본문에 세션 ID·작업 유형·`Co-authored-by: coding-expert-harness` 포함.
+4. `git rev-parse HEAD` 로 커밋 해시 확인.
 
-2. 작업 브랜치를 생성한다:
-   ```bash
-   git checkout -b coding-expert/{session-id}
-   ```
-   - 동일 브랜치가 이미 존재하면 `-b` 대신 체크아웃만 수행한다.
+### Step 3: Push (commit-push / commit-push-pr)
 
-3. 변경사항을 스테이징하고 커밋한다:
-   ```bash
-   git add -A
-   git commit -m "{task-type}: {task-summary}
+`git push origin coding-expert/{session-id}` — remote 미설정 시 apply-log.md에 기록 후 건너뜀.
 
-   세션 ID: {session-id}
-   작업 유형: {task-type}
+### Step 4: PR 생성 (commit-push-pr)
 
-   Co-authored-by: coding-expert-harness"
-   ```
-   - 커밋 메시지 첫 줄은 72자 이내로 작성한다.
+- `gh auth status` 확인 — 미인증 시 apply-log.md에 기록 후 종료.
+- `gh pr create --title "{task-type}: {task-summary}" --body "..." --base {base-branch} --{pr-visibility}` 실행. PR body에는 작업 유형, 세션 ID, work-result.md 경로를 포함한다.
+- 생성된 PR URL을 apply-log.md에 기록.
 
-4. 커밋 해시를 확인한다:
-   ```bash
-   git rev-parse HEAD
-   ```
+### Step 5: Merge (merge)
 
-### Step 3: Push (operation이 commit-push 또는 commit-push-pr인 경우)
-
-```bash
-git push origin coding-expert/{session-id}
-```
-- remote가 설정되어 있지 않으면 apply-log.md에 "push 불가: remote origin이 설정되지 않음"을 기록하고 Step 3을 건너뛴다.
-
-### Step 4: PR 생성 (operation이 commit-push-pr인 경우)
-
-1. `gh auth status`로 GitHub 인증 여부를 확인한다. 미인증 시 "PR 생성 불가: gh auth login 필요"를 기록하고 종료한다.
-
-2. PR을 생성한다:
-   ```bash
-   gh pr create \
-     --title "{task-type}: {task-summary}" \
-     --body "## 작업 유형
-   {task-type}
-
-   ## 세션 ID
-   {session-id}
-
-   ## 변경 내용
-   coding-expert-harness가 자동 생성한 변경입니다.
-   work-result.md를 참조하세요: .coding-expert-artifacts/{session-id}/work-result.md" \
-     --base {base-branch} \
-     --{pr-visibility}
-   ```
-
-3. 생성된 PR URL을 apply-log.md에 기록한다.
-
-### Step 5: Merge (operation이 merge인 경우)
-
-1. base-branch로 전환한다:
-   ```bash
-   git checkout {base-branch}
-   ```
-
-2. merge를 수행한다:
-   ```bash
-   git merge --no-ff coding-expert/{session-id} -m "Merge coding-expert/{session-id} into {base-branch}"
-   ```
-   - 충돌 발생 시 merge를 중단(`git merge --abort`)하고 apply-log.md에 충돌 파일 목록과 수동 해결 방법을 기록한다.
+`git checkout {base-branch}` 후 `git merge --no-ff coding-expert/{session-id}`. 충돌 시 `git merge --abort` 하고 충돌 파일 목록과 수동 해결 방법을 apply-log.md에 기록.
 
 ### Step 6: 결과 기록
 
-apply-log.md의 "## Git 작업 결과" 섹션에 다음을 추가 기록한다:
-- 생성된 브랜치명
-- 커밋 해시 및 커밋 메시지
-- push 여부 및 결과
-- PR URL (생성한 경우)
-- merge 결과 (수행한 경우)
+apply-log.md의 `## Git 작업 결과` 섹션에 브랜치명·커밋 해시·push 결과·PR URL·merge 결과를 추가한다.
 
 ## 제약
 
