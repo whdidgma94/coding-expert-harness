@@ -1,32 +1,38 @@
 {
-  "allowedTools": [
-    "Bash(find *)",
-    "Bash(ls)",
-    "Bash(ls *)",
-    "Bash(npm test)",
-    "Bash(pytest *)",
-    "Bash(go test *)",
-    "Bash(cargo test)",
-    "Bash(mvn test)",
-    "Bash(gradle test)",
-    "Bash(yarn test)",
-    "Bash(pnpm test)",
-    "Bash(npm run test)",
-    "Bash(python -m pytest *)",
-    "Bash(bundle exec rspec *)",
-    "Bash(git *)",
-    "Bash(gh *)",
-    "Bash(npm run build)",
-    "Bash(npm run lint)",
-    "Bash(tsc *)",
-    "Bash(eslint *)",
-    "Bash(flake8 *)",
-    "Bash(black *)",
-    "Bash(golangci-lint *)",
-    "Read",
-    "Glob",
-    "Grep"
-  ],
+  "permissions": {
+    "allow": [
+      "Bash(find *)",
+      "Bash(ls)",
+      "Bash(ls *)",
+      "Bash(npm test)",
+      "Bash(pytest *)",
+      "Bash(go test *)",
+      "Bash(cargo test)",
+      "Bash(mvn test)",
+      "Bash(gradle test)",
+      "Bash(yarn test)",
+      "Bash(pnpm test)",
+      "Bash(npm run test)",
+      "Bash(python -m pytest *)",
+      "Bash(bundle exec rspec *)",
+      "Bash(git *)",
+      "Bash(gh *)",
+      "Bash(npm run build)",
+      "Bash(npm run lint)",
+      "Bash(tsc *)",
+      "Bash(eslint *)",
+      "Bash(flake8 *)",
+      "Bash(black *)",
+      "Bash(golangci-lint *)",
+      "Read",
+      "Glob",
+      "Grep"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~*)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {
