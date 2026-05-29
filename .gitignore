@@ -1,3 +1,7 @@
 .harness-artifacts/
+.coding-expert-artifacts/
 .argos/
 *.local.json
+node_modules
+__pycache__/
+*.pyc
