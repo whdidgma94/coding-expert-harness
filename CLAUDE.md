@@ -11,6 +11,7 @@
 - `request.md` — 사용자의 원문 자연어 요청 보존 (Step 1)
 - `task-spec.md` — 분류된 작업 유형(review/bugfix/generate/refactor), 작업 범위, 대상 파일 후보, 요청 충족 기준 (Step 2 / intent-classifier)
 - `spec-verification.md` — A구간 명세 검증 결과(PASS/CLARIFIED/REVISE), 모호성 질문·사용자 답변 이력 (Step 2 / spec-verifier)
+- `plan-summary.md` — 체크포인트 P에서 사용자에게 제시된 실행 계획과 승인 결과 기록 (Step 2.5)
 - `codebase-context.md` — 대상 코드베이스의 언어·프레임워크·기존 디렉토리 구조·기능별 폴더 패턴·코딩 컨벤션·테스트 디렉토리 존재 여부·표준 테스트/빌드 명령 (Step 3 / codebase-explorer)
 - `architecture-plan.md` — 작업 결과물의 기능별 폴더 트리, 모듈 경계, 신규/수정 파일 경로 목록, 각 파일의 책임 요약. 사용자 체크포인트 A에서 승인된 최종본 (Step 4 / architecture-planner)
 - `work-result.md` — 작업 수행 결과 요약. review는 진단 리포트, bugfix는 원인 분석, generate/refactor는 변경 의도와 파일 목록 (Step 5 / worker agents)
@@ -28,15 +29,16 @@
 
 1. **소스 쓰기 범위 제한**: Step 1~6의 모든 agent는 `.coding-expert-artifacts/{session-id}/` 산출물 디렉토리에만 쓰기를 수행한다. 실제 소스 파일은 절대 수정하지 않는다. 실제 소스 수정은 Step 8의 `change-applier`만 수행하고, git 작업은 Step 10의 `git-operator`만 수행하며, 두 agent 모두 사용자 최종 승인(Step 7 체크포인트 B) 이후에만 실행된다.
 2. **사용자 확인 체크포인트 A** (Step 4): generate 유형에서 항상 실행, refactor·bugfix 유형에서는 폴더 구조 변경이 동반될 때만 실행, review 유형에서는 건너뛴다. 체크포인트 A에서 폴더 트리·모듈 경계·신규/수정 파일 경로를 제시하고 승인을 받아야만 Step 5로 진행한다.
-3. **사용자 확인 체크포인트 B** (Step 7): 작업 요약·진단 결과·확정된 폴더 구조·적용될 diff·검증 결과를 제시하고 승인/수정/거부를 받는다. 이 승인 없이는 Step 8(실제 소스 적용)·Step 9(테스트)·Step 10(Git)으로 진행하지 않는다. Git 업로드 범위(`commit-only` / `commit-push` / `commit-push-pr`)도 함께 선택한다.
-4. **A구간 검증 루프** (Step 2): classify 직후 spec-verifier가 task-spec.md의 분류 적절성을 검증한다. 요청이 모호하면 사용자에게 구체화 질문을 제시하고 답변을 반영하여 intent-classifier를 재실행한다 (최대 2회 재실행). 가장 저렴한 지점에서 방향 오류를 차단한다.
-5. **C구간 검증 루프** (Step 8): apply 직후 apply-verifier가 적용 완결성과 범위 일탈 여부를 검증한다. 예상외 수정 파일이 발견되면 사용자에게 확인을 요청한다. ISSUES 판정 시 파이프라인을 중단하고 수동 확인을 안내한다.
-6. **모호한 요청 구체화**: A구간에서 요청의 작업 유형·범위·전제 조건이 불명확한 경우 spec-verifier가 사용자에게 선택지 형식의 질문을 제시한다 (최대 3회). 답변을 반영하여 task-spec.md를 갱신한 뒤 재분류한다.
-7. **기존 검증 루프**: Step 6에서 work-verifier가 REVISE 판정 시 `verification.md`의 지시사항을 입력으로 Step 5를 1회 재실행한다. 재실행 후에도 REVISE면 검증 결과를 사용자에게 보여주고 진행 여부를 묻는다 (최대 1회 재시도, 무한 루프 방지).
-8. **자동 테스트 루프**: Step 9에서 test-runner가 실제 소스에 표준 테스트를 실행한다. 실패 시 `test-report.md`에 실패 내역을 기록하고 강력 경고를 표시한다. 사용자가 "테스트 실패를 인지하고 업로드"를 명시적으로 승인해야만 Step 10으로 진행한다.
-9. **분기 실행**: Step 5는 `task-spec.md`의 작업 유형에 따라 worker agent(code-reviewer / bug-fixer / code-generator / refactorer) 1개만 실행한다. 4개를 병렬 실행하지 않는다.
-10. **review 유형 종료 처리**: 작업 유형이 review인 경우 `changes/`가 비어 있으므로 Step 8(적용)·Step 9(테스트)·Step 10(Git)을 건너뛰고, Step 7에서 진단 리포트를 전달하는 것으로 종료한다.
-11. **Git 통합**: Step 10에서 git-operator는 Step 7에서 선택한 범위로 동작한다. 브랜치명은 `coding-expert/{session-id}`, 커밋 메시지는 `{task-type}: {task-summary}` 형식. git 레포가 아니면 "git 레포 아님" 기록, remote 없으면 커밋까지만, `gh` 미인증이면 push까지만 수행한다. `git push --force`·`git reset --hard`는 절대 수행하지 않는다.
+3. **사용자 확인 체크포인트 P** (Step 2.5): 의도 분류 완료 직후, 코드베이스 탐색 전에 실행한다. 작업 유형·분류 근거·대상 파일·실행 단계 목록(건너뛸 단계 포함)·예상 산출물을 제시하고 승인을 받는다. 승인 없이는 Step 3으로 진행하지 않는다. 수정 요청 시 task-spec.md를 갱신하고 계획을 재제시한다. 취소 시 파이프라인을 종료한다. `plan-summary.md`에 확정된 계획과 승인 결과를 기록한다.
+4. **사용자 확인 체크포인트 B** (Step 7): 작업 요약·진단 결과·확정된 폴더 구조·적용될 diff·검증 결과를 제시하고 승인/수정/거부를 받는다. 이 승인 없이는 Step 8(실제 소스 적용)·Step 9(테스트)·Step 10(Git)으로 진행하지 않는다. Git 업로드 범위(`commit-only` / `commit-push` / `commit-push-pr`)도 함께 선택한다.
+5. **A구간 검증 루프** (Step 2): classify 직후 spec-verifier가 task-spec.md의 분류 적절성을 검증한다. 요청이 모호하면 사용자에게 구체화 질문을 제시하고 답변을 반영하여 intent-classifier를 재실행한다 (최대 2회 재실행). 가장 저렴한 지점에서 방향 오류를 차단한다.
+6. **C구간 검증 루프** (Step 8): apply 직후 apply-verifier가 적용 완결성과 범위 일탈 여부를 검증한다. 예상외 수정 파일이 발견되면 사용자에게 확인을 요청한다. ISSUES 판정 시 파이프라인을 중단하고 수동 확인을 안내한다.
+7. **모호한 요청 구체화**: A구간에서 요청의 작업 유형·범위·전제 조건이 불명확한 경우 spec-verifier가 사용자에게 선택지 형식의 질문을 제시한다 (최대 3회). 답변을 반영하여 task-spec.md를 갱신한 뒤 재분류한다.
+8. **기존 검증 루프**: Step 6에서 work-verifier가 REVISE 판정 시 `verification.md`의 지시사항을 입력으로 Step 5를 1회 재실행한다. 재실행 후에도 REVISE면 검증 결과를 사용자에게 보여주고 진행 여부를 묻는다 (최대 1회 재시도, 무한 루프 방지).
+9. **자동 테스트 루프**: Step 9에서 test-runner가 실제 소스에 표준 테스트를 실행한다. 실패 시 `test-report.md`에 실패 내역을 기록하고 강력 경고를 표시한다. 사용자가 "테스트 실패를 인지하고 업로드"를 명시적으로 승인해야만 Step 10으로 진행한다.
+10. **분기 실행**: Step 5는 `task-spec.md`의 작업 유형에 따라 worker agent(code-reviewer / bug-fixer / code-generator / refactorer) 1개만 실행한다. 4개를 병렬 실행하지 않는다.
+11. **review 유형 종료 처리**: 작업 유형이 review인 경우 `changes/`가 비어 있으므로 Step 8(적용)·Step 9(테스트)·Step 10(Git)을 건너뛰고, Step 7에서 진단 리포트를 전달하는 것으로 종료한다.
+12. **Git 통합**: Step 10에서 git-operator는 Step 7에서 선택한 범위로 동작한다. 브랜치명은 `coding-expert/{session-id}`, 커밋 메시지는 `{task-type}: {task-summary}` 형식. git 레포가 아니면 "git 레포 아님" 기록, remote 없으면 커밋까지만, `gh` 미인증이면 push까지만 수행한다. `git push --force`·`git reset --hard`는 절대 수행하지 않는다.
 
 ## 커맨드
 

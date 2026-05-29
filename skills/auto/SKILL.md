@@ -1,6 +1,6 @@
 # auto
 
-전체 파이프라인 오케스트레이터. 사용자의 자연어 요청을 받아 Step 1~10을 순서대로 실행하며 사용자 체크포인트 A·B를 관리하고, 분기·검증 루프·테스트 실패 처리를 제어한다.
+전체 파이프라인 오케스트레이터. 사용자의 자연어 요청을 받아 Step 1~10을 순서대로 실행하며 사용자 체크포인트 P·A·B를 관리하고, 분기·검증 루프·테스트 실패 처리를 제어한다.
 
 ## 입력
 
@@ -20,6 +20,44 @@
 
 `classify` skill을 호출한다.
 - 전달 인자: `session-id`
+
+### Step 2.5 — 실행 계획 확인 (체크포인트 P)
+
+`task-spec.md`를 읽어 아래 내용을 사용자에게 제시하고 승인을 받는다.
+
+**제시 항목:**
+
+1. **작업 유형** — 분류된 task-type과 한 줄 분류 근거 (`task-spec.md`의 `분류 근거` 필드)
+2. **작업 범위** — 대상 파일·디렉토리 목록 (`task-spec.md`의 `target-files` 필드)
+3. **실행 단계** — task-type과 `needs-architecture-plan` 값을 기반으로 각 단계의 실행 여부를 표시한다
+
+```
+✅ Step 1   — 요청 접수 (완료)
+✅ Step 2   — 의도 분류 (완료)
+▶  Step 2.5 — 실행 계획 확인  ← 체크포인트 P (지금 여기)
+   Step 3   — 코드베이스 탐색
+   Step 4   — 아키텍처 계획    [실행 예정] 또는 [건너뜀]
+   Step 5   — 작업 수행         ({task-type}에 해당하는 worker 실행)
+   Step 6   — 자가 검증
+   Step 7   — 최종 확인         ← 체크포인트 B
+   Step 8   — 변경 적용         [실행 예정] 또는 [건너뜀 — review]
+   Step 9   — 자동 테스트       [실행 예정] 또는 [건너뜀 — review]
+   Step 10  — Git 업로드        [실행 예정] 또는 [건너뜀 — review]
+```
+
+Step 4 표시 기준: `generate`이면 `[실행 예정 — 필수]`, `needs-architecture-plan: true`인 refactor·bugfix이면 `[실행 예정]`, 그 외에는 `[건너뜀]`.
+Step 8~10 표시 기준: `review`이면 `[건너뜀]`, 그 외에는 `[실행 예정]`.
+
+4. **예상 산출물** — task-type별 예상 출력물을 나열한다
+   - review: 진단 리포트 (`work-result.md`)
+   - bugfix: 원인 분석 + 수정 패치 + 회귀 방지 테스트 (`work-result.md`, `changes/`)
+   - generate: 신규 코드 + 테스트 파일 (`work-result.md`, `changes/`)
+   - refactor: 리팩토링 패치 (`work-result.md`, `changes/`)
+
+사용자 응답에 따라 분기한다:
+- **승인**: `plan-summary.md`에 확정된 계획을 기록하고 Step 3으로 진행한다.
+- **수정 요청**: 수정 내용을 `task-spec.md`에 반영한 뒤 실행 계획을 다시 제시한다.
+- **취소**: 파이프라인을 종료하고 산출물 디렉토리 경로를 안내한다.
 
 ### Step 3 — 코드베이스 탐색
 
